@@ -70,8 +70,7 @@ public class ModuleOldArmourStrength extends Module {
         }
 
         // Don't calculate enchantment reduction if damage is already 0. NMS 1.8 does it this way.
-        final double enchantmentReductionPercentage = e.getFinalDamage() <= 0 ? 0 :
-                calculateEnchantmentReductionPercentage(damagedEntity.getEquipment(), e.getCause());
+        final double enchantmentReductionPercentage = calculateEnchantmentReductionPercentage(damagedEntity.getEquipment(), e.getCause());
 
         if (enchantmentReductionPercentage > 0) {
             //Reset MAGIC (Armour enchants) damage
