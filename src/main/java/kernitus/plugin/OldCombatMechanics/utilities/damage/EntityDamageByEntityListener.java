@@ -7,12 +7,19 @@ import org.bukkit.entity.LivingEntity;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
+import org.bukkit.event.entity.PlayerDeathEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.scheduler.BukkitRunnable;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
 
 public class EntityDamageByEntityListener extends Module {
 
     private static EntityDamageByEntityListener INSTANCE;
     private boolean enabled;
+    private final Map<UUID, Double> lastCorrectedDamage = new HashMap<>();
 
     public EntityDamageByEntityListener(OCMMain plugin) {
         super(plugin, "entity-damage-listener");
@@ -35,6 +42,19 @@ public class EntityDamageByEntityListener extends Module {
     @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
     public void onEntityDamage(EntityDamageByEntityEvent event) {
         Entity damager = event.getDamager();
+        if (event.getEntity() instanceof LivingEntity livingEntity && lastCorrectedDamage.containsKey(livingEntity.getUniqueId())) {
+            if ((float) livingEntity.getNoDamageTicks() > (float) livingEntity.getMaximumNoDamageTicks() / 2.0F) {
+                final double damage = event.getDamage();
+                // damage = minecraft 1.9 increased weapon damage.
+                // damage <= lastCorrectedDamage, if that is the case the entity is getting damage it should not get
+                if (damage <= lastCorrectedDamage.get(livingEntity.getUniqueId())) {
+                    event.setCancelled(true);
+                }
+            } else {
+                lastCorrectedDamage.remove(livingEntity.getUniqueId());
+            }
+        }
+
         OCMEntityDamageByEntityEvent e = new OCMEntityDamageByEntityEvent
                 (damager, event.getEntity(), event.getCause(), event.getDamage());
 
@@ -97,7 +117,7 @@ public class EntityDamageByEntityListener extends Module {
         final Entity damagee = e.getEntity();
         if (damagee instanceof LivingEntity) {
             final double damage = e.getFinalDamage();
-
+            lastCorrectedDamage.put(damagee.getUniqueId(), e.getDamage()); // we need to save the last damage because after the event it called minecraft ignores the new damage and overwrites the lastDamage with the regular calculated damage
             new BukkitRunnable() {
                 @Override
                 public void run() {
@@ -107,5 +127,15 @@ public class EntityDamageByEntityListener extends Module {
             }.runTaskLater(plugin, 1);
 
         }
+    }
+
+    @EventHandler
+    public void onDeath(PlayerDeathEvent event) {
+        lastCorrectedDamage.remove(event.getEntity().getUniqueId());
+    }
+
+    @EventHandler
+    public void onQuit(PlayerQuitEvent event) {
+        lastCorrectedDamage.remove(event.getPlayer().getUniqueId());
     }
 }
